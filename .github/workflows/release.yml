@@ -1,0 +1,52 @@
+name: Release
+on:
+  schedule:
+    - cron: '35 16 * * *'
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: Source tags of nginx image to patch
+        required: false
+        default: latest
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    env:
+      REPO: ghcr.io/octarect/hostname
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.CR_PAT }}
+
+      - id: schedule
+        if: github.event_name == 'schedule'
+        name: Fetch recently updated tags
+        run: |
+          tags="$(./latest_update_images.sh '90 days ago' | base64)"
+          echo "::set-output name=tags::${tags}"
+
+      - id: patch
+        name: Patch base image with desired tags
+        run: |
+          if [[ -n "${{ steps.schedule.outputs.tags }}" ]]; then
+            src_tags="$(echo ${{ steps.schedule.outputs.tags }} | base64 -d)"
+          else
+            src_tags="${{ github.event.inputs.tags }}"
+          fi
+
+          echo 'The following tags will be patched.'
+          echo "$src_tags"
+
+          dst_tags=''
+          for tag in $src_tags; do
+            make patch REPO=$REPO BASE_TAG=$tag
+
+            dst_tag=$REPO:$tag
+            docker push $dst_tag
+          done
