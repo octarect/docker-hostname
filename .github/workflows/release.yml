@@ -28,7 +28,7 @@ jobs:
         if: github.event_name == 'schedule'
         name: Fetch recently updated tags
         run: |
-          tags="$(./latest_update_images.sh '90 days ago' | base64)"
+          tags="$(./latest_update_images.sh '7 days ago' | base64)"
           echo "::set-output name=tags::${tags}"
 
       - id: patch
@@ -48,5 +48,5 @@ jobs:
             make patch REPO=$REPO BASE_TAG=$tag
 
             dst_tag=$REPO:$tag
-            docker push $dst_tag
+            docker image push $dst_tag
           done
